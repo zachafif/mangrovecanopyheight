@@ -8,30 +8,42 @@ library(parallel)
 library(doParallel)
 
 ##Load dataset and filter data
-d<-read.csv2("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10.csv")
+d<-read.csv2("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10_fin.csv")
 d= type.convert(d, as.is = TRUE)
 d$h_canopy_num<-as.numeric(d$h_canopy)
+
+d$NDVI=(d$b8-d$b4)/(d$b8+d$b4)
+d$GNDVI=(d$b8-d$b3)/(d$b8+d$b3)
+d$SAVI=(d$b8-d$b4)/(d$b8+d$b4+0.5)*(1+0.5)
+d$NDII=(d$b8-d$b11)/(d$b8+d$b11)
+
+
 d.filt <- subset(d, d$b2 > -1000 # Filter dataset based on sentinel-2 that has nan value
                  & d$b3 > -1000
                  & d$b4 > -1000
                  & d$b8 > -1000
                  & d$b11 > -1000
                  & d$b12 > -1000, )
-d.filt2<-d.filt %>% filter(lo_vh < 0, lo_vv < 0,psar_hh >0 ,psar_hv> 0) # Filter dataset based on sentinel-1 that has nan value
+d.filt2<-d.filt %>% filter(vh < 0 | vv < 0) # Filter dataset based on sentinel-1 that has nan value
 d.filt3<-d.filt2%>% filter(h_canopy_num>2,h_canopy_num<25,NDVI != -9999) 
-d.filt4<-d.filt3%>% filter(chm_meta>2,abs(chm_meta-h_canopy_num)<5) %>% select(-chm)
+
+vars=c("class","vv","vh","b2","b3","b4","b8","b11","b12","NDVI","GNDVI","SAVI","NDII","h_canopy_num")
+
+d.final<-d.filt3[vars]
+d.final$X<-1:dim(d.final)[1]
+
 
 ##Train-Test Split using Stratified Sampling based on species class
 
-a <- table(d.filt4$class) #Count frequency of each class
+a <- table(d.final$class) #Count frequency of each class
 prop <- 0.7 #Set the proportion for training data
 freqclass <- as.numeric(a) 
 trfreq <- round(freqclass * prop, digits = 0) #Calculate how many samples per class
-d.fin <- d.filt4[order(d.filt4$class),] 
+d.fin <- d.final[order(d.final$class),] 
 sizeArg <- trfreq
 
 # Create stratified sample data frame
-rows <- dim(d.filt4)[1]
+rows <- dim(d.final)[1]
 iter<-50
 smpdf = data.frame(matrix(NA, nrow=round((rows * prop)),ncol=0))
 
@@ -55,15 +67,15 @@ mdlRes <- data.frame(mdlNme=character(),
                      mae_val=numeric(),
                      mape_val=numeric())
 #Loop model training 
-for (i in 1:3) {
+for (i in 1:5) {
   smp <- smpdf[,i]
-  calPnt <- d.filt4[smp,]
+  trainPnt <- d.final[smp,]
   
-  valPnt <- d.filt4[!d.filt4$X %in% calPnt$X ,]
+  testPnt <- d.final[!d.final$X %in% trainPnt$X ,]
   
-  caldat<-calPnt%>%select(-h_canopy)%>%select(-h_canopy_num)%>%select(-X)
+  traindat<-trainPnt%>%select(-h_canopy_num,-X)
   
-  valdat<-valPnt%>%select(-h_canopy)%>%select(-h_canopy_num)%>%select(-X)
+  testdat<-testPnt%>%select(-h_canopy_num,-X)
   
   cntr <- trainControl(method='repeatedcv',
                        number=3,
@@ -71,57 +83,56 @@ for (i in 1:3) {
   
   print(paste0("Modelling attempt ", i," Started!"))
   print(start_time <- Sys.time())
-  RF <- caret::train(caldat,calPnt$h_canopy,method='rf', importance=T, trControl = cntr)
+  RF <- caret::train(traindat,trainPnt$h_canopy_num,method='rf', importance=T, trControl = cntr)
   print(end_time <- Sys.time())
   print(paste0("Modelling attempt ", i," Finished!"))
       
-  cal.prdRF <- predict(RF)
-  val.prdRF <- predict(RF,newdata=valPnt) #Predict Testing dataset
+  train.prdRF <- predict(RF)
+  test.prdRF <- predict(RF,newdata=testPnt) #Predict Testing dataset
   
   #Calculate model metrics
-  MAPE = (1/nrow(calPnt)) * sum(abs(calPnt$h_canopy_num - cal.prdRF)/ calPnt$h_canopy_num) * 100
-  MAPE.val = (1/nrow(valPnt)) * sum(abs(valPnt$h_canopy_num - val.prdRF)/ valPnt$h_canopy_num) * 100
-  rmse.cal=rmse(calPnt$h_canopy_num,cal.prdRF)
-  rmse.val=rmse(valPnt$h_canopy_num,val.prdRF)
-  mae.cal=mae(calPnt$h_canopy_num,cal.prdRF)
-  mae.val=mae(valPnt$h_canopy_num,val.prdRF)
+  MAPE = (1/nrow(trainPnt)) * sum(abs(trainPnt$h_canopy_num - train.prdRF)/ trainPnt$h_canopy_num) * 100
+  MAPE.test = (1/nrow(testPnt)) * sum(abs(testPnt$h_canopy_num - test.prdRF)/ testPnt$h_canopy_num) * 100
+  rmse.train=rmse(trainPnt$h_canopy_num,train.prdRF)
+  rmse.test=rmse(testPnt$h_canopy_num,test.prdRF)
+  mae.train=mae(trainPnt$h_canopy_num,train.prdRF)
+  mae.test=mae(testPnt$h_canopy_num,test.prdRF)
   
   
-  #saveRDS(RF, file = "H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\rf_model_v7.rds")
+  saveRDS(RF, file = paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\rf_model_tr_",i,".rds"))
   
   smpNum <- prop
   # write results to data frame
   new<-data.frame(mdlname='RF',iter=i,smp=smpNum,
-    rmse_cal=round(rmse.cal,3),mae_cal=round(mae.cal,3),mape_cal=round(MAPE,3),
-    rmse_val=round(rmse.val,3),mae_val=round(mae.val,3),mape_val=round(MAPE.val,3))
+    rmse.train=round(rmse.train,3),mae.train=round(mae.train,3),mape.train=round(MAPE,3),
+    rmse.test=round(rmse.test,3),mae.test=round(mae.test,3),mape.test=round(MAPE.test,3))
   mdlRes <- rbind(mdlRes,new)
   
-  print(i)
-  print(round(rmse.cal,3))
-  print(round(rmse.val,3))
-  print(round(MAPE,3))
-  print(round(MAPE.val,3))
+  print(paste0("Attempts:" ,i))
+  print(paste0("RMSE Train: ",round(rmse.train,3)))
+  print(paste0("RMSE Test: ",round(rmse.test,3)))
+  print(paste0("MAPE Train: ",round(MAPE,3)))
+  print(paste0("MAPE Test: ",round(MAPE.test,3)))
   
 }
 
 ##predict wall to wall dataset
 
-r<-terra::rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\stacked_w2w_v3.tif")
+filename <- file.choose()
+RF <- readRDS(filename)
+
+r<-terra::rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\stacked_w2w_v4.tif")
 w2w <- as.data.frame(r, xy = TRUE)
 
-colnames(w2w)[3]<-'chm'
-colnames(w2w)[4]<-'psar_hh'
-colnames(w2w)[5]<-'psar_hv'
-colnames(w2w)[6]<-'lo_vv'
-colnames(w2w)[7]<-'lo_vh'
-colnames(w2w)[8]<-'b2'
-colnames(w2w)[9]<-'b3'
-colnames(w2w)[10]<-'b4'
-colnames(w2w)[11]<-'b8'
-colnames(w2w)[12]<-'b11'
-colnames(w2w)[13]<-'b12'
-colnames(w2w)[31]<-'chm_meta'
-colnames(w2w)[32]<-'class'
+colnames(w2w)[3]<-'class'
+colnames(w2w)[4]<-'vv'
+colnames(w2w)[5]<-'vh'
+colnames(w2w)[6]<-'b2'
+colnames(w2w)[7]<-'b3'
+colnames(w2w)[8]<-'b4'
+colnames(w2w)[9]<-'b8'
+colnames(w2w)[10]<-'b11'
+colnames(w2w)[11]<-'b12'
 
 w2w_c <- w2w %>%
   mutate(
@@ -143,7 +154,16 @@ w2w_c <- w2w %>%
     RI = lo_vh / lo_vv
   )
 
-w2w.filt<-w2w_c%>%filter(!is.na(class))
+w2w_c <- w2w %>%
+  mutate(
+    NDVI = (b8 - b4) / (b8 + b4),
+    GNDVI = (b8 - b3) / (b8 + b3),
+    SAVI = ((b8 - b4) / (b8 + b4 + 0.5)) * (1 + 0.5),
+    NDII = (b8 - b11) / (b8 + b11),
+  )
+
+w2w.filt<-w2w_c%>%filter(!is.na(class),class!=0)
+
 
 prdw2w <- predict(RF, newdata = w2w.filt)
 
@@ -153,7 +173,7 @@ w2w.pred.fin=w2w.pred%>%select(x,y,prdw2w)
 
 w2w.pred.raster <- terra::rast(w2w.pred.fin, type = "xyz")
 
-writeRaster(w2w.pred.raster,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251018.tif")
+writeRaster(w2w.pred.raster,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251106.tif")
 
 plot(w2w.pred.raster,main="Mangrove Height Model - Trat, Thailand")
 

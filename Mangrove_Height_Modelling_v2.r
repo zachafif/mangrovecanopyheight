@@ -3,6 +3,7 @@ library(dplyr)
 library(terra)
 library(randomForest)
 library(ModelMetrics)
+library(ggplot2)
 
 ##Load dataset and filter data
 d<-read.csv2("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10_fin.csv")
@@ -33,11 +34,27 @@ d.filt <- subset(d, d$b2 > -1000 # Filter dataset based on sentinel-2 that has n
                  & d$b11 > -1000
                  & d$b12 > -1000, )
 d.filt2<-d.filt %>% filter(vh < 0 | vv < 0) # Filter dataset based on sentinel-1 that has nan value
-d.filt3<-d.filt2%>% filter(h_canopy>0,h_canopy<30,NDVI != -9999) 
+#d.filt3<-d.filt2%>% filter(h_canopy>0,h_canopy<30,NDVI != -9999)
+d.filt3<-d.filt2%>% filter(h_canopy>0,h_canopy<30) 
 d.filt3$ort_h=d.filt3$h_te_median+22.021
 d.filt4<-d.filt3%>% filter(ort_h<20,class !=6)
-d.final<-d.filt4[c(2,22:30,53:78)] #all features
+d.final<-d.filt4 #all features
 d.final$X<-1:dim(d.final)[1]
+
+#Full coverage dataset
+r<-terra::rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\stacked_w2w_v4.tif")
+w2w <- as.data.frame(r, xy = TRUE)
+colnames(w2w)[3]<-'class'
+colnames(w2w)[4]<-'vv'
+colnames(w2w)[5]<-'vh'
+colnames(w2w)[6]<-'b2'
+colnames(w2w)[7]<-'b3'
+colnames(w2w)[8]<-'b4'
+colnames(w2w)[9]<-'b8'
+colnames(w2w)[10]<-'b11'
+colnames(w2w)[11]<-'b12'
+
+w2w.filt<-w2w%>%filter(!is.na(class),class!=0)
 
 
 ##Train-Test Split using Stratified Sampling based on species class##
@@ -64,8 +81,10 @@ colnames(smpdf)  <- c(paste('smp_',c(1:iter),sep=''))
 ##Model Training and Testing##
 
 # Specify the names of dependent var columns
-predictor_cols <- c( "vv","vh","b2","b3","b3","b4","b8","b11","b12",
-"CIg","NDVI","SAVI","NDII","MDI1","MDI2","MNDWI","RVI","RI")
+#predictor_cols <- c( "vv","vh","b2","b3","b3","b4","b8","b11","b12",
+#"CIg","NDVI","SAVI","NDII","MDI1","MDI2","MNDWI","RVI","RI")
+
+predictor_cols <- c( "vv","vh","b2","b3","b3","b4","b8","b11","b12")
 
 # Specify the independent columns (relative height metrics)
 target_cols <- c("rh10","rh15","rh20","rh25","rh30","rh35","rh40","rh45","rh50","rh55", "rh60","rh65", 
@@ -125,7 +144,7 @@ for (target in target_cols) {
   print(eval_results%>%filter(rh==target))
   
   # Export Canopy Height Model (raster)
-  writeRaster(w2w.pred.raster,paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251127_",target,".tif"))
+  writeRaster(w2w.pred.raster,paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251201_",target,".tif"),overwrite=TRUE)
   print(paste0("Modelling W2W attempt ", target," Finished!"))
   
   # Export Scatterplot of predicted vs reference
@@ -138,10 +157,10 @@ for (target in target_cols) {
     xlim(0,30) +
     ylim(0,30)
   plot+theme_bw()+theme(plot.title = element_text(hjust = 0.5))+ annotate("text", x = 15, y = 25, label = text,col="red")
-  ggsave(paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\plot_20251127_",target,".png"), plot = plot)
+  ggsave(paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\plot_20251201_",target,".png"), plot = plot)
   assign(paste0("plot.",target),plot)
               
 }
 
 ## Export Model Validation Table
-write.table(eval_results,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\20251127_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
+write.table(eval_results,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\20251201_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)

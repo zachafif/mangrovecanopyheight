@@ -8,7 +8,7 @@ library(ggplot2)
 ##Load dataset and filter data
 d<-read.csv2("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10_fin.csv")
 d= type.convert(d, as.is = TRUE)
-sf=st_read("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\transect.shp")
+sf=st_read("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\Trat_BioHeight_30112025-20251209T123704Z-1-001\\Trat_BioHeight_30112025\\DataRevised_30112025\\GCP_selected.geojson")
 sf$ID=1:nrow(sf)
 vect=vect(sf)
 
@@ -116,7 +116,7 @@ for (target in target_cols) {
   # Predict on test set
   pred <- predict(model, test)
   rmse <- sqrt(mean((test[[target]] - pred)^2))
-  rsq <- cor(test[[target]], pred)^2
+  #rsq <- cor(test[[target]], pred)^2
   #eval_results[[target]] <- list(RMSE = rmse, Rsquared = rsq)
   
   cat("\nRandom Forest model for target:", target, "\n")
@@ -134,22 +134,24 @@ for (target in target_cols) {
   sample.rst <- terra::extract(w2w.pred.raster, vect)
   sample.rst.join=sample.rst%>%left_join(sf,by="ID")
   sample.rst.join<- na.omit(sample.rst.join)
-  rmse.tr <- sqrt(mean((sample.rst.join$mH - sample.rst.join$prdw2w)^2))
+  rmse.tr <- sqrt(mean((sample.rst.join$mean_x - sample.rst.join$prdw2w)^2))
+  mape=mean(abs((sample.rst.join$mean_x - sample.rst.join$prdw2w) / sample.rst.join$mean_x)) * 100
+  rsq=summary(lm(sample.rst.join$mean_x ~ sample.rst.join$prdw2w))$r.squared
   #eval_results[[target]] <- list(RMSE.md = rmse,RMSE.vd = rmse.tr, Rsquared = rsq)
   cat("\nEvaluation for target:", target, "\n")
   
   # Record model validation result
-  new<-data.frame(rh=target,RMSE.md=rmse,RMSE.vd=rmse.tr,Rsquared=rsq)
+  new<-data.frame(rh=target,RMSE.md=rmse,RMSE.vd=rmse.tr,Rsquared=rsq,mape=mape)
   eval_results <- rbind(eval_results,new)
   print(eval_results%>%filter(rh==target))
   
   # Export Canopy Height Model (raster)
-  writeRaster(w2w.pred.raster,paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251201_",target,".tif"),overwrite=TRUE)
+  #writeRaster(w2w.pred.raster,paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251209_",target,".tif"),overwrite=TRUE)
   print(paste0("Modelling W2W attempt ", target," Finished!"))
   
   # Export Scatterplot of predicted vs reference
   text=paste0("RMSE: ",round(rmse.tr,digit=2)," m")
-  plot <- ggplot(sample.rst.join,aes(x=mH, y=prdw2w)) +
+  plot <- ggplot(sample.rst.join,aes(x=mean_x, y=prdw2w)) +
     geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
     geom_abline(a=0,b=0,linetype=1,colour="red")+
     labs(title = target,x = "Actual (m)", y = "Predicted (m)") +
@@ -157,10 +159,29 @@ for (target in target_cols) {
     xlim(0,30) +
     ylim(0,30)
   plot+theme_bw()+theme(plot.title = element_text(hjust = 0.5))+ annotate("text", x = 15, y = 25, label = text,col="red")
-  ggsave(paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\plot_20251201_",target,".png"), plot = plot)
+  #ggsave(paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\plot_20251209_",target,".png"), plot = plot)
   assign(paste0("plot.",target),plot)
               
 }
 
 ## Export Model Validation Table
-write.table(eval_results,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\20251201_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
+write.table(eval_results,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\20251209_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
+
+
+## Optional - Create a line graph from the evaluation result
+cur.eval=eval_results[c(27:46),]
+substr(cur.eval$rh.num, start = 3, stop = 5)
+cur.eval$rh.num <- as.numeric(substr(cur.eval$rh, start = 3, stop = 5))
+cur.eval[19,]$rh.num=100
+cur.eval[20,]$rh.num=105
+ggplot(cur.eval, aes(x=rh.num, y=RMSE.vd)) +
+  geom_line(color="red")+
+  geom_point()+ theme_minimal()+
+  labs(
+    title = "Model Performance for each RH Metrics",
+    x = "Relative Height Metrics ",
+    y = "RMSE (m)"
+  ) +
+  scale_x_continuous(breaks = sort(unique(cur.eval$rh.num)),labels = cur.eval$rh)+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))

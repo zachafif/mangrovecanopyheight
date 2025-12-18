@@ -61,13 +61,15 @@ dat=read.delim("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10_fin.csv",sep=
 dat$datetime=strptime(dat$time, format = "%Y-%m-%d %H:%M:%S")
 dat$datehr=format(dat$datetime, "%Y-%m-%d %H")
 
+tide$datetime <- as.POSIXct(tide$datetime, format = "%Y-%m-%d %H:%M:%S")
 tide$datehr=format(tide$datetime, "%Y-%m-%d %H")
-tide$lotide[tide$WaterLevel_cm <=167]=1
+tide$lotide[tide$WaterLevel_cm <=200]=1
 
 join=left_join(dat,tide,join_by(datehr))
 
-tide.filt=join[join$lotide==1,]
+tide.filt=join %>% filter(lotide==1)
 
 write.table(join,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\datjointide_167.csv",sep=";",row.names = FALSE,quote = FALSE)
 
-
+d.final<-tide.filt #all features
+d.final$X<-1:dim(tide.filt)[1]

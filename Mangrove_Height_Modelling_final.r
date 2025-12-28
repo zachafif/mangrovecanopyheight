@@ -7,10 +7,12 @@ library(ggplot2)
 library(tidyr)
 library(gridExtra)
 
+setwd("localdir") #change based on respective directory of input files
+
 ###Data Preparation
 ##Parse canopy relative height metrics
 # Remove brackets and extra spaces
-inp<-st_read("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10.geojson")
+inp<-st_read("datadataset_v10.geojson")
 inp$val_clean <- gsub("\\[|\\]", "", inp$canopy_h_metrics)
 inp$val_clean <- trimws(inp$val_clean)
 
@@ -47,13 +49,13 @@ inp.4 <- inp.4 %>%
          b11=SAMPLE_8,
          b12=SAMPLE_9)
 
-write.table(sf.4,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10_fin.csv",sep=";")
+write.table(sf.4,"datadataset_v10_fin.csv",sep=";")
 
 ###Prediction Modelling
 ##Load dataset and filter data
-d<-read.csv2("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\dataset_v10_fin.csv")
+d<-read.csv2("datadataset_v10_fin.csv")
 d= type.convert(d, as.is = TRUE) #Convert string columns (number) to numeric
-sf=st_read("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\Trat_BioHeight_30112025-20251209T123704Z-1-001\\Trat_BioHeight_30112025\\DataRevised_30112025\\GCP_selected.geojson")
+sf=st_read("dataTrat_BioHeight_30112025-20251209T123704Z-1-001\\Trat_BioHeight_30112025\\DataRevised_30112025\\GCP_selected.geojson")
 sf$ID=1:nrow(sf)
 vect=vect(sf)
 
@@ -71,7 +73,7 @@ d.final<-d.filt4 #all features
 d.final$X<-1:dim(d.final)[1] 
 
 #Full coverage dataset
-r<-terra::rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\stacked_w2w_v4.tif")
+r<-terra::rast("datastacked_w2w_v4.tif")
 w2w <- as.data.frame(r, xy = TRUE)
 colnames(w2w)[3]<-'class'
 colnames(w2w)[4]<-'vv'
@@ -170,7 +172,7 @@ for (target in target_cols) {
   print(eval_results%>%filter(rh==target))
   
   # Export Canopy Height Model (raster)
-  writeRaster(w2w.pred.raster,paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\w2w_res_20251209_",target,".tif"),overwrite=TRUE)
+  writeRaster(w2w.pred.raster,paste0("dataw2w_res_20251209_",target,".tif"),overwrite=TRUE)
   print(paste0("Modelling W2W attempt ", target," Finished!"))
   
   # Export Scatterplot of predicted vs reference
@@ -183,13 +185,13 @@ for (target in target_cols) {
     xlim(0,30) +
     ylim(0,30)
   plot+theme_bw()+theme(plot.title = element_text(hjust = 0.5))+ annotate("text", x = 15, y = 25, label = text,col="red")
-  ggsave(paste0("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\plot_20251209_",target,".png"), plot = plot)
+  ggsave(paste0("dataplot_20251209_",target,".png"), plot = plot)
   assign(paste0("plot.",target),plot)
               
 }
 
 ## Export Model Validation Table
-write.table(eval_results,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\20251209_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
+write.table(eval_results,"data20251209_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
 
 ## Optional - Create a line graph from the evaluation result
 cur.eval <- eval_results[27:46, ]
@@ -245,10 +247,10 @@ ggplot(cur.long, aes(x = rh.num, y = RMSE, color = set)) +
 ###Comparison with Global Products
 
 #Load CHM products
-tolan=rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\tolan_chm.tif")
-potapov=rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\potapov_chm_30m.tif")
-simard=rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\simard_chm.tif")
-lang=rast("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\lang_chm.tif")
+tolan=rast("datatolan_chm.tif")
+potapov=rast("datapotapov_chm_30m.tif")
+simard=rast("datasimard_chm.tif")
+lang=rast("datalang_chm.tif")
 
 #Extract raster based in field plot location
 sample.tolan <- terra::extract(tolan, vect)
@@ -291,7 +293,7 @@ globchm.res=data.frame(
 )
 
 #Save result
-write.table(globchm.res,"H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\globalcmh_20251224.csv",sep=";",row.names = FALSE,quote = FALSE)
+write.table(globchm.res,"dataglobalcmh_20251224.csv",sep=";",row.names = FALSE,quote = FALSE)
 
 #Plot Graph
 plot.lang_chm <- ggplot(globchm,aes(x=mH, y=lang_chm)) +

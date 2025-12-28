@@ -49,7 +49,7 @@ inp.4 <- inp.4 %>%
          b11=SAMPLE_8,
          b12=SAMPLE_9)
 
-write.table(sf.4,"datadataset_v10_fin.csv",sep=";")
+write.table(inp.4,"datadataset_v10_fin.csv",sep=";")
 
 ###Prediction Modelling
 ##Load dataset and filter data

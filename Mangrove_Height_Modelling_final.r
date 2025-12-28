@@ -12,7 +12,7 @@ setwd("localdir") #change based on respective directory of input files
 ###Data Preparation
 ##Parse canopy relative height metrics
 # Remove brackets and extra spaces
-inp<-st_read("datadataset_v10.geojson")
+inp<-st_read("dataset_v10.geojson")
 inp$val_clean <- gsub("\\[|\\]", "", inp$canopy_h_metrics)
 inp$val_clean <- trimws(inp$val_clean)
 

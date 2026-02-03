@@ -12,50 +12,33 @@ setwd("localdir") #change based on respective directory of input files
 ###Data Preparation
 ##Parse canopy relative height metrics
 # Remove brackets and extra spaces
-inp<-st_read("dataset_v10.geojson")
-inp$val_clean <- gsub("\\[|\\]", "", inp$canopy_h_metrics)
-inp$val_clean <- trimws(inp$val_clean)
+inp<-st_read("dataset_v11_filtered.geojson")
+inp$X=1:nrow(inp)
+inp.v=vect(inp)
+sample.inp <- terra::extract(r, inp.v)
+colnames(sample.inp)[1]="X"
 
-# Split into list of values
-inp$val_list <- strsplit(inp$val_clean, "\\s+")
-
-# Convert list to data frame with separate columns
-df_parsed <- as.data.frame(do.call(rbind, inp$val_list))
-
-col=c("rh10","rh15","rh20","rh25","rh30","rh35","rh40","rh45","rh50","rh55", "rh60","rh65", 
-      "rh70", "rh75", "rh80", "rh85", "rh90", "rh95","rh98","rh99")
-
-# Rename columns (optional)
-colnames(df_parsed) <- col
-
-
-#Merge and rename columns
-inp.2=select(inp, -val_clean,-val_list)
-# Extract centroid coordinates
-centroids <- st_coordinates(st_centroid(inp))
-inp.3 <- cbind(inp.2, centroids)
-st_geometry(inp.3) <- NULL
-inp.4=cbind(inp.3,df_parsed)
+inp.2= inp %>% left_join(sample.inp ,by="X")
 
 #rename column
-inp.4 <- inp.4 %>%
-  rename(class=SAMPLE_1 ,
-         vv=SAMPLE_2,
-         vh=SAMPLE_3,
-         b2=SAMPLE_4,
-         b3=SAMPLE_5,
-         b4=SAMPLE_6,
-         b8=SAMPLE_7,
-         b11=SAMPLE_8,
-         b12=SAMPLE_9)
+inp.2  <- inp.2  %>%
+  rename(class=stacked_w2w_v4_1 ,
+         vv=stacked_w2w_v4_2,
+         vh=stacked_w2w_v4_3,
+         b2=stacked_w2w_v4_4,
+         b3=stacked_w2w_v4_5,
+         b4=stacked_w2w_v4_6,
+         b8=stacked_w2w_v4_7,
+         b11=stacked_w2w_v4_8,
+         b12=stacked_w2w_v4_9)
 
-write.table(inp.4,"datadataset_v10_fin.csv",sep=";")
+write.table(inp.2 ,"dataset_v11_fin.csv",sep=";")
 
 ###Prediction Modelling
 ##Load dataset and filter data
-d<-read.csv2("datadataset_v10_fin.csv")
+d<-read.csv2("dataset_v11_fin.csv")
 d= type.convert(d, as.is = TRUE) #Convert string columns (number) to numeric
-sf=st_read("dataTrat_BioHeight_30112025-20251209T123704Z-1-001\\Trat_BioHeight_30112025\\DataRevised_30112025\\GCP_selected.geojson")
+sf=st_read("Trat_BioHeight_30112025-20251209T123704Z-1-001\\Trat_BioHeight_30112025\\DataRevised_30112025\\GCP_selected.geojson")
 sf$ID=1:nrow(sf)
 vect=vect(sf)
 
@@ -66,14 +49,14 @@ d.filt <- subset(d, d$b2 > -1000 # Filter dataset based on sentinel-2 that has n
                  & d$b11 > -1000
                  & d$b12 > -1000, )
 d.filt2<-d.filt %>% filter(vh < 0 | vv < 0) # Filter dataset based on sentinel-1 that has nan value
-d.filt3<-d.filt2%>% filter(h_canopy>0,h_canopy<30) # Filter dataset based on icesat-2 canopy height
-d.filt3$ort_h=d.filt3$h_te_median+22.021 # Calculate orthometric height
+d.filt3<-d.filt2%>% filter(Canopy_h>0,Canopy_h<30) # Filter dataset based on icesat-2 canopy height
+d.filt3$ort_h=d.filt3$Elevation+22.021 # Calculate orthometric height
 d.filt4<-d.filt3%>% filter(ort_h<20,class !=6) # Filter dataset based on icesat-2 orthometric height and class
 d.final<-d.filt4 #all features
 d.final$X<-1:dim(d.final)[1] 
 
 #Full coverage dataset
-r<-terra::rast("datastacked_w2w_v4.tif")
+r<-terra::rast("stacked_w2w_v4.tif")
 w2w <- as.data.frame(r, xy = TRUE)
 colnames(w2w)[3]<-'class'
 colnames(w2w)[4]<-'vv'
@@ -97,7 +80,7 @@ d.fin <- d.final[order(d.final$class),]
 sizeArg <- trfreq
 
 # Create stratified sample data frame
-rows <- dim(d.final)[1]+1
+rows <- dim(d.final)[1]
 iter<-50
 smpdf = data.frame(matrix(NA, nrow=round((rows * prop)),ncol=0))
 
@@ -111,6 +94,9 @@ colnames(smpdf)  <- c(paste('smp_',c(1:iter),sep=''))
 
 ##Model Training and Testing##
 predictor_cols <- c( "vv","vh","b2","b3","b3","b4","b8","b11","b12")
+
+d.final <- d.final  %>%
+  rename(rh98=Canopy_h)
 
 # Specify the independent columns (relative height metrics)
 target_cols <- c("rh10","rh15","rh20","rh25","rh30","rh35","rh40","rh45","rh50","rh55", "rh60","rh65", 
@@ -172,7 +158,7 @@ for (target in target_cols) {
   print(eval_results%>%filter(rh==target))
   
   # Export Canopy Height Model (raster)
-  writeRaster(w2w.pred.raster,paste0("dataw2w_res_20251209_",target,".tif"),overwrite=TRUE)
+  writeRaster(w2w.pred.raster,paste0("dataw2w_res_20260120_",target,".tif"),overwrite=TRUE)
   print(paste0("Modelling W2W attempt ", target," Finished!"))
   
   # Export Scatterplot of predicted vs reference
@@ -185,16 +171,16 @@ for (target in target_cols) {
     xlim(0,30) +
     ylim(0,30)
   plot+theme_bw()+theme(plot.title = element_text(hjust = 0.5))+ annotate("text", x = 15, y = 25, label = text,col="red")
-  ggsave(paste0("dataplot_20251209_",target,".png"), plot = plot)
+  ggsave(paste0("dataplot_20260120_",target,".png"), plot = plot)
   assign(paste0("plot.",target),plot)
               
 }
 
 ## Export Model Validation Table
-write.table(eval_results,"data20251209_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
+write.table(eval_results,"20260120_rhmodel.csv",sep=";",row.names = FALSE,quote = FALSE)
 
 ## Optional - Create a line graph from the evaluation result
-cur.eval <- eval_results[27:46, ]
+cur.eval <- eval_results
 
 # create rh.num
 cur.eval$rh.num <- as.numeric(substr(cur.eval$rh, start = 3, stop = 5))
@@ -247,53 +233,56 @@ ggplot(cur.long, aes(x = rh.num, y = RMSE, color = set)) +
 ###Comparison with Global Products
 
 #Load CHM products
-tolan=rast("datatolan_chm.tif")
-potapov=rast("datapotapov_chm_30m.tif")
-simard=rast("datasimard_chm.tif")
-lang=rast("datalang_chm.tif")
+tolan=rast("tolan_chm.tif")
+potapov=rast("potapov_chm_30m.tif")
+simard=rast("simard_chm.tif")
+lang=rast("lang_chm.tif")
+afif=rast("dataw2w_res_20260120_rh60.tif")
 
 #Extract raster based in field plot location
 sample.tolan <- terra::extract(tolan, vect)
 sample.potapov <- terra::extract(potapov, vect)
 sample.simard <- terra::extract(simard, vect)
 sample.lang <- terra::extract(lang, vect)
+sample.afif <- terra::extract(afif, vect)
 
 #Combine result into one dataframe
-globchm=cbind(sample.tolan,sample.potapov,sample.simard,sample.lang)
+globchm=cbind(sample.tolan,sample.potapov,sample.simard,sample.lang,sample.afif)
 colnames(globchm)[2]="tolan_chm"
 colnames(globchm)[4]="potapov_chm"
 colnames(globchm)[3]="ID_2"
 colnames(globchm)[5]="ID_3"
 colnames(globchm)[7]="ID_4"
 colnames(globchm)[8]="lang_chm"
-globchm=globchm %>% left_join(sample.rst.join,by="ID") %>%  na.omit()
-colnames(globchm)[12]="mH"
-globchm$zachary_chm=globchm$prdw2w
+colnames(globchm)[9]="ID_5"
+colnames(globchm)[10]="afif_chm"
+globchm=globchm %>% left_join(sf,by="ID") %>%  na.omit()
+colnames(globchm)[13]="mH"
 
 #Calculate Evaluation Metrics
 rmse.tolan=sqrt(mean((globchm$mH - globchm$tolan_chm)^2))
 rmse.potapov=sqrt(mean((globchm$mH - globchm$potapov_chm)^2))
 rmse.simard=sqrt(mean((globchm$mH - globchm$simard_chm)^2))
-rmse.zachary=sqrt(mean((globchm$mH - globchm$prdw2w)^2))
+rmse.afif=sqrt(mean((globchm$mH - globchm$afif_chm)^2))
 rmse.lang=sqrt(mean((globchm$mH - globchm$lang_chm)^2))
 
 r2.tolan=cor(globchm$mH,globchm$tolan_chm)^2
 r2.potapov=cor(globchm$mH,globchm$potapov_chm)^2
 r2.simard=cor(globchm$mH,globchm$simard_chm)^2
-r2.zachary=cor(globchm$mH,globchm$prdw2w)^2
+r2.afif=cor(globchm$mH,globchm$afif_chm)^2
 r2.lang=cor(globchm$mH,globchm$lang_chm)^2
 
-chm_cols <- c("zachary_chm","tolan_chm","potapov_chm","simard_chm","lang_chm")
+chm_cols <- c("afif_chm","tolan_chm","potapov_chm","simard_chm","lang_chm")
 
 #arrange results
 globchm.res=data.frame(
   model=chm_cols,
-  rmse=c(rmse.zachary,rmse.tolan,rmse.potapov,rmse.simard,rmse.lang),
-  r2=c(r2.zachary,r2.tolan,r2.potapov,r2.simard,r2.lang)
+  rmse=c(rmse.afif,rmse.tolan,rmse.potapov,rmse.simard,rmse.lang),
+  r2=c(r2.afif,r2.tolan,r2.potapov,r2.simard,r2.lang)
 )
 
 #Save result
-write.table(globchm.res,"dataglobalcmh_20251224.csv",sep=";",row.names = FALSE,quote = FALSE)
+write.table(globchm.res,"dataglobalcmh_20260120.csv",sep=";",row.names = FALSE,quote = FALSE)
 
 #Plot Graph
 plot.lang_chm <- ggplot(globchm,aes(x=mH, y=lang_chm)) +
@@ -336,33 +325,17 @@ plot.tolan_chm <- ggplot(globchm,aes(x=mH, y=tolan_chm)) +
   xlim(0,30) +
   ylim(0,30)
 
-plot.zachary_chm <- ggplot(globchm,aes(x=mH, y=zachary_chm)) +
+plot.zachary_chm <- ggplot(globchm,aes(x=mH, y=afif_chm)) +
   geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
   geom_abline(a=0,b=0,linetype=1,colour="red")+
-  annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.zachary,2)," m"),
+  annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.afif,2)," m"),
            color="black")+
   labs(title ="Afif",x = "Actual (m)", y = "Predicted (m)") +
   coord_fixed()+  # Set aspect ratio t  o be equal
   xlim(0,30) +
   ylim(0,30)
 
-plots<- map(chm_cols, ~ {
-  ggplot(globchm,aes(x=mH, y=.data[[.x]])) +
-    geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
-    geom_abline(a=0,b=0,linetype=1,colour="red")+
-    labs(title = paste0(.x),x = "Actual (m)", y = "Predicted (m)") +
-    coord_fixed()+  # Set aspect ratio t  o be equal
-    xlim(0,30) +
-    ylim(0,30)+
-    theme_minimal()
-})
-
 #arrange graph into grid
-grid.arrange(plots[[1]],
-             plots[[2]],
-             plots[[3]],
-             plots[[4]],
-             plots[[5]],ncol = 5)
 
 grid.arrange(plot.zachary_chm,
              plot.lang_chm,
@@ -372,7 +345,15 @@ grid.arrange(plot.zachary_chm,
               ncol=5)
 
 #Extract raster based on prediction result pixel location
+
+c=st_read("H:\\02 MSc\\MASTER 2025\\JGSEE\\Paper\\Trat_BioHeight_30112025-20251209T123704Z-1-001\\Trat_BioHeight_30112025\\S12_classification_v2.shp")
+c <- st_make_valid(c)
+pred_sf=st_as_sf(x = as.points(afif), coords = c("x", "y"), crs = "+proj=longlat +datum=WGS84 +no_defs")
+pred_sf.cl <-st_intersects(pred_sf, c)
+pred_sf.cl = st_join(pred_sf, c)
+pred_sf.cl <- na.omit(pred_sf.cl)
 pred_sf.cl$ID = 1:nrow(pred_sf.cl)
+
 tolan.w2w <- terra::extract(tolan, vect(pred_sf.cl))
 potapov.w2w <- terra::extract(potapov, vect(pred_sf.cl))
 simard.w2w <- terra::extract(simard, vect(pred_sf.cl))
@@ -398,10 +379,9 @@ globalchm.w2w.longer=globchm.w2w %>%
 
 #Column and row renaming
 globalchm.w2w.longer=globalchm.w2w.longer[globalchm.w2w.longer$class!=6,]
-globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "prdw2w"] <- "zachary_chm"
-globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "zachary_chm"] <- "afif_chm"
-globalchm.w2w.longer$class_name[globalchm.w2w.longer$class_name == "Class 7"] <-  "Class 6"
+globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "prdw2w"] <- "afif_chm"
 globalchm.w2w.longer$class_name=paste0("Class ",globalchm.w2w.longer$class)
+globalchm.w2w.longer$class_name[globalchm.w2w.longer$class_name == "Class 7"] <-  "Class 6"
 
 #Plot barplot of height distribution based on species class
 order.bar<- c("Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6")

@@ -15,6 +15,7 @@ setwd("localdir") #change based on respective directory of input files
 inp<-st_read("dataset_v11_filtered.geojson")
 inp$X=1:nrow(inp)
 inp.v=vect(inp)
+r<-terra::rast("stacked_w2w_v4.tif")
 sample.inp <- terra::extract(r, inp.v)
 colnames(sample.inp)[1]="X"
 
@@ -56,7 +57,6 @@ d.final<-d.filt4 #all features
 d.final$X<-1:dim(d.final)[1] 
 
 #Full coverage dataset
-r<-terra::rast("stacked_w2w_v4.tif")
 w2w <- as.data.frame(r, xy = TRUE)
 colnames(w2w)[3]<-'class'
 colnames(w2w)[4]<-'vv'
@@ -158,6 +158,7 @@ for (target in target_cols) {
   print(eval_results%>%filter(rh==target))
   
   # Export Canopy Height Model (raster)
+  als=terra::project(w2w.pred.raster,"EPSG:4326")
   writeRaster(w2w.pred.raster,paste0("dataw2w_res_20260120_",target,".tif"),overwrite=TRUE)
   print(paste0("Modelling W2W attempt ", target," Finished!"))
   
@@ -202,7 +203,6 @@ cur.long$set <- factor(cur.long$set,
 ggplot(cur.long, aes(x = rh.num, y = RMSE, color = set)) +
   geom_line(size = 1.5) +
   geom_point(size = 4) +
-  theme_bw(base_size = 12) +
   labs(
     title = "Model Performance across RH Metrics",
     x = "Relative Height Metrics",
@@ -221,13 +221,11 @@ ggplot(cur.long, aes(x = rh.num, y = RMSE, color = set)) +
     plot.title = element_text(hjust=0.5,face = "bold"),
     # strong rectangular border around panel
     panel.border   = element_rect(colour = "black", fill = NA, linewidth = 1),
-    # remove grey background explicitly (keeps minimal style)
-    panel.background = element_rect(fill = "white", colour = NA),
     # darker axis lines for stern look
     axis.line = element_line(colour = "black", linewidth = 0.4),
     # optional: tone down grid
     panel.grid.major = element_line(colour = "grey85", linewidth = 0.3),
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(),legend.position = "bottom"
   )
 
 ###Comparison with Global Products
@@ -290,50 +288,56 @@ plot.lang_chm <- ggplot(globchm,aes(x=mH, y=lang_chm)) +
   geom_abline(a=0,b=0,linetype=1,colour="red")+
   annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.lang,2)," m"),
            color="black")+
-  labs(title ="Lang",x = "Actual (m)", y = "Predicted (m)") +
+  annotate(geom="text", x=15, y=25, label=paste0("R2: ",round(r2.lang,2)," m"),
+                                   color="black")+
+  labs(title ="Lang (2023)",x = "Actual (m)", y = "Predicted (m)") +
   coord_fixed()+  # Set aspect ratio t  o be equal
   xlim(0,30) +
-  ylim(0,30)
+  ylim(0,30)+theme(plot.title = element_text(size = 12,face = "bold"))
 
 plot.simard_chm <- ggplot(globchm,aes(x=mH, y=simard_chm)) +
   geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
   geom_abline(a=0,b=0,linetype=1,colour="red")+
   annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.simard,2)," m"),
-           color="black")+
-  labs(title ="Simard",x = "Actual (m)", y = "Predicted (m)") +
+           color="black")+annotate(geom="text", x=15, y=25, label=paste0("R2: ",round(r2.simard,2)," m"),
+                                   color="black")+
+  labs(title ="Simard (2025)",x = "Actual (m)", y = "Predicted (m)") +
   coord_fixed()+  # Set aspect ratio t  o be equal
   xlim(0,30) +
-  ylim(0,30)
+  ylim(0,30)+theme(plot.title = element_text(size = 12,face = "bold"))
 
 plot.potapov_chm <- ggplot(globchm,aes(x=mH, y=potapov_chm)) +
   geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
   geom_abline(a=0,b=0,linetype=1,colour="red")+
   annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.potapov,2)," m"),
-           color="black")+
-  labs(title ="Potapov",x = "Actual (m)", y = "Predicted (m)") +
+           color="black")+annotate(geom="text", x=15, y=25, label=paste0("R2: ",round(r2.potapov,2)," m"),
+                                   color="black")+
+  labs(title ="Potapov (2021)",x = "Actual (m)", y = "Predicted (m)") +
   coord_fixed()+  # Set aspect ratio t  o be equal
   xlim(0,30) +
-  ylim(0,30)
+  ylim(0,30)+theme(plot.title = element_text(size = 12,face = "bold"))
 
 plot.tolan_chm <- ggplot(globchm,aes(x=mH, y=tolan_chm)) +
   geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
   geom_abline(a=0,b=0,linetype=1,colour="red")+
   annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.tolan,2)," m"),
-           color="black")+
-  labs(title ="Tolan",x = "Actual (m)", y = "Predicted (m)") +
+           color="black")+annotate(geom="text", x=15, y=25, label=paste0("R2: ",round(r2.tolan,2)," m"),
+                                   color="black")+
+  labs(title ="Tolan (2024)",x = "Actual (m)", y = "Predicted (m)") +
   coord_fixed()+  # Set aspect ratio t  o be equal
   xlim(0,30) +
-  ylim(0,30)
+  ylim(0,30)+theme(plot.title = element_text(size = 12,face = "bold"))
 
 plot.zachary_chm <- ggplot(globchm,aes(x=mH, y=afif_chm)) +
   geom_point(shape=21,colour = "blue", fill = "white",size=1,stroke = 1.5) + 
   geom_abline(a=0,b=0,linetype=1,colour="red")+
   annotate(geom="text", x=15, y=30, label=paste0("RMSE: ",round(rmse.afif,2)," m"),
-           color="black")+
-  labs(title ="Afif",x = "Actual (m)", y = "Predicted (m)") +
+           color="black")+annotate(geom="text", x=15, y=25, label=paste0("R2: ",round(r2.zachary,2)," m"),
+                                   color="black")+
+  labs(title ="This Study",x = "Actual (m)", y = "Predicted (m)") +
   coord_fixed()+  # Set aspect ratio t  o be equal
   xlim(0,30) +
-  ylim(0,30)
+  ylim(0,30)+theme(plot.title = element_text(size = 12,face = "bold"))
 
 #arrange graph into grid
 
@@ -379,7 +383,11 @@ globalchm.w2w.longer=globchm.w2w %>%
 
 #Column and row renaming
 globalchm.w2w.longer=globalchm.w2w.longer[globalchm.w2w.longer$class!=6,]
-globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "prdw2w"] <- "afif_chm"
+globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "prdw2w"] <- "This Study"
+globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "tolan_chm"] <- "Tolan (2024)"
+globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "lang_chm"] <- "Lang (2023)"
+globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "potapov_chm"] <- "Potapov (2021)"
+globalchm.w2w.longer$chm[globalchm.w2w.longer$chm == "simard_chm"] <- "Simard (2025)"
 globalchm.w2w.longer$class_name=paste0("Class ",globalchm.w2w.longer$class)
 globalchm.w2w.longer$class_name[globalchm.w2w.longer$class_name == "Class 7"] <-  "Class 6"
 
@@ -393,18 +401,15 @@ ggplot(globalchm.w2w.longer, aes(fill = chm, y = height, x = factor(class_name, 
            width = 0.7) +
   scale_fill_viridis_d(option = "plasma", name = "Model") +
   labs(
-    title = "Height Distribution by Class",
     x = "Species Communities Class",
     y = "Height (m)"
   ) +
-  theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5, size = 16, face = "bold", margin = margin(b = 15)),
     plot.subtitle = element_text(hjust = 0.5, size = 12, color = "grey50"),
     
     # Professional panel styling
     panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8),
-    panel.background = element_rect(fill = "white", colour = NA),
     panel.grid.major.x = element_blank(),
     panel.grid.minor = element_blank(),
     panel.grid.major.y = element_line(colour = "grey85", linewidth = 0.3),
@@ -425,3 +430,39 @@ ggplot(globalchm.w2w.longer, aes(fill = chm, y = height, x = factor(class_name, 
     plot.margin = margin(15, 15, 15, 15)
   ) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.05)))
+
+# Extract feature importance data
+imp <- importance(models_list$rh60, type = 2)  # type=1 for %IncMSE, type=2 for IncNodePurity
+
+# Convert to data frame and clean up
+imp_df <- data.frame(
+  Variable = rownames(imp),
+  Importance = imp[,1]  # or imp[,2] for IncNodePurity
+) %>%
+  arrange(desc(Importance)) %>%
+  mutate(Variable = factor(Variable, levels = Variable))
+
+ggplot(imp_df, aes(x = Importance, y = reorder(Variable, Importance))) +
+  geom_segment(aes(xend = 0, yend = reorder(Variable, Importance)), color = "steelblue", size = 1) +
+  geom_point(color = "steelblue", size = 4, alpha = 0.8) +
+  labs(title = "Variable Importance", x = "IncNodePurity", y = "") +
+  scale_x_continuous(breaks = seq(0, max(imp_df$Importance), by = 200))+
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text.y = element_text(size = 14),
+    panel.grid.major.x = element_blank(), # strong rectangular border around panel
+    panel.border   = element_rect(colour = "black", fill = NA, linewidth = 0.7),
+    # remove grey background explicitly (keeps minimal style)
+    # darker axis lines for stern look
+    axis.line = element_line(colour = "black", linewidth = 0.4),
+    # optional: tone down grid
+    panel.grid.major = element_line(colour = "white", linewidth = 0.3),
+    panel.grid.minor = element_blank()
+  )
+
+#Create grid of scatterplot from selected rh variable
+plot.rh10r=plot.rh10+annotate(geom="text", x=15, y=30, label="RMSE: 5.98 m",color="black")+annotate(geom="text", x=15, y=27, label="R2: 35%",color="black")+annotate(geom="text", x=15, y=24, label="MAPE: 53%",color="black")
+plot.rh40r=plot.rh40+annotate(geom="text", x=15, y=30, label="RMSE: 3.29 m",color="black")+annotate(geom="text", x=15, y=27, label="R2: 35%",color="black")+annotate(geom="text", x=15, y=24, label="MAPE: 28%",color="black")
+plot.rh60r=plot.rh60+annotate(geom="text", x=15, y=30, label="RMSE: 2.89 m",color="black")+annotate(geom="text", x=15, y=27, label="R2: 36%",color="black")+annotate(geom="text", x=15, y=24, label="MAPE: 30%",color="black")
+plot.rh98r=plot.rh98+annotate(geom="text", x=15, y=30, label="RMSE: 5.10 m",color="black")+annotate(geom="text", x=15, y=27, label="R2: 36%",color="black")+annotate(geom="text", x=15, y=24, label="MAPE: 61%",color="black")
+grid.arrange(plot.rh10r,plot.rh40r,plot.rh60r,plot.rh98r, ncol = 2)
